@@ -55,7 +55,7 @@ for (const [env, name] of [['ANTHROPIC_API_KEY', 'Anthropic'], ['OPENAI_API_KEY'
 }
 
 const GEN_MODEL = 'claude-sonnet-5';
-const REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.2';
+const REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.6';
 
 const generatorPrompt = fs.readFileSync(path.join(__dirname, 'prompts', 'generator.md'), 'utf8');
 const reviewerPrompt = fs.readFileSync(path.join(__dirname, 'prompts', 'reviewer.md'), 'utf8');
