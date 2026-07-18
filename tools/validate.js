@@ -49,7 +49,37 @@ if (!ajv.validate(indexSchema, index)) {
 // 2. Темы: файлы существуют, id уникальны, prerequisites указывают на существующие темы
 const allTopicIds = new Set();
 const allPrereqs = [];
+
+function checkQuizFile(relPath) {
+  const quiz = load(relPath);
+  if (!ajv.validate(quizSchema, quiz)) {
+    errors.push(`${relPath}: ${ajv.errorsText(ajv.errors)}`);
+    return;
+  }
+  for (const q of quiz.questions) {
+    const where = `${relPath} #${q.id}`;
+    checkFormulas(q.text, where);
+    (q.options || []).forEach((o) => checkFormulas(o, where));
+    checkFormulas(q.explanation, where);
+    if ((q.type === 'choice' || q.type === 'multi') && q.options) {
+      const idxs = q.type === 'choice' ? [q.correct] : q.correct;
+      for (const i of idxs) {
+        if (i >= q.options.length) errors.push(`${where}: correct=${i} выходит за пределы options`);
+      }
+    }
+  }
+}
+
+let examCount = 0;
 for (const section of index.sections || []) {
+  if (section.exam) {
+    if (!fs.existsSync(path.join(ROOT, section.exam))) {
+      errors.push(`${section.id}: контрольная не найдена: ${section.exam}`);
+    } else {
+      checkQuizFile(section.exam);
+      examCount++;
+    }
+  }
   for (const topic of section.topics || []) {
     if (allTopicIds.has(topic.id)) errors.push(`Дубликат id темы: ${topic.id}`);
     allTopicIds.add(topic.id);
@@ -64,23 +94,7 @@ for (const section of index.sections || []) {
       if (key === 'lesson') {
         checkFormulas(fs.readFileSync(p, 'utf8'), topic[key]);
       } else {
-        const quiz = load(topic[key]);
-        if (!ajv.validate(quizSchema, quiz)) {
-          errors.push(`${topic[key]}: ${ajv.errorsText(ajv.errors)}`);
-          continue;
-        }
-        for (const q of quiz.questions) {
-          const where = `${topic[key]} #${q.id}`;
-          checkFormulas(q.text, where);
-          (q.options || []).forEach((o) => checkFormulas(o, where));
-          checkFormulas(q.explanation, where);
-          if ((q.type === 'choice' || q.type === 'multi') && q.options) {
-            const idxs = q.type === 'choice' ? [q.correct] : q.correct;
-            for (const i of idxs) {
-              if (i >= q.options.length) errors.push(`${where}: correct=${i} выходит за пределы options`);
-            }
-          }
-        }
+        checkQuizFile(topic[key]);
       }
     }
   }
@@ -94,4 +108,4 @@ if (errors.length) {
   errors.forEach((e) => console.error(' - ' + e + '\n'));
   process.exit(1);
 }
-console.log(`OK: ${allTopicIds.size} тем, все схемы валидны, все формулы компилируются.`);
+console.log(`OK: ${allTopicIds.size} тем, ${examCount} контрольных, все схемы валидны, все формулы компилируются.`);

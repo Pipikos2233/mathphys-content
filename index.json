@@ -5,6 +5,7 @@
       "id": "calculus",
       "title": "Математический анализ",
       "subject": "math",
+      "exam": "sections/calculus/exam.json",
       "topics": [
         {
           "id": "seq-limits",
