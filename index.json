@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "sections": [
+    {
+      "id": "calculus",
+      "title": "Математический анализ",
+      "subject": "math",
+      "topics": [
+        {
+          "id": "seq-limits",
+          "title": "Предел последовательности",
+          "version": 1,
+          "lesson": "sections/calculus/seq-limits/lesson.md",
+          "quiz": "sections/calculus/seq-limits/quiz.json",
+          "prerequisites": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Манифест контента (index.json)",
+  "type": "object",
+  "required": ["schemaVersion", "sections"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "topics"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "title": { "type": "string" },
+          "subject": { "enum": ["math", "physics"] },
+          "exam": { "type": "string", "description": "путь к контрольной раздела" },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "version", "lesson", "quiz"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+                "title": { "type": "string" },
+                "version": { "type": "integer", "minimum": 1 },
+                "lesson": { "type": "string" },
+                "quiz": { "type": "string" },
+                "prerequisites": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "id тем (в т.ч. из других разделов), которые стоит пройти раньше"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Тест после урока / контрольная (quiz.json)",
+  "type": "object",
+  "required": ["schemaVersion", "questions"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "passThreshold": {
+      "type": "number", "minimum": 0, "maximum": 1,
+      "description": "доля правильных для зачёта, по умолчанию 0.7"
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "text", "explanation"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "enum": ["choice", "multi", "numeric", "short"] },
+          "text": { "type": "string", "description": "Markdown + LaTeX в $...$" },
+          "options": { "type": "array", "items": { "type": "string" } },
+          "correct": {
+            "description": "choice: индекс; multi: массив индексов; numeric: число; short: не используется",
+            "anyOf": [
+              { "type": "integer", "minimum": 0 },
+              { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+              { "type": "number" }
+            ]
+          },
+          "tolerance": { "type": "number", "minimum": 0, "description": "допуск для numeric, абсолютный" },
+          "accepted": {
+            "type": "array", "items": { "type": "string" },
+            "description": "short: допустимые написания ответа, сравнение после нормализации пробелов/регистра"
+          },
+          "explanation": { "type": "string", "description": "полный разбор, показывается после ответа" },
+          "source": { "type": "string", "description": "учебник, параграф/страница — след для вычитки" }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "choice" } } },
+            "then": { "required": ["options", "correct"], "properties": { "correct": { "type": "integer" } } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "multi" } } },
+            "then": { "required": ["options", "correct"], "properties": { "correct": { "type": "array", "minItems": 1 } } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "numeric" } } },
+            "then": { "required": ["correct"], "properties": { "correct": { "type": "number" } } }
+          },
+          {
+            "if": { "properties": { "type": { "const": "short" } } },
+            "then": { "required": ["accepted"] }
+          }
+        ]
+      }
+    }
+  }
+}
