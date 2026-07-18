@@ -3,6 +3,7 @@
 // Запуск: npm run validate. Ненулевой код выхода = контент сломан.
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const Ajv = require('ajv');
 const katex = require('katex');
 
@@ -66,6 +67,24 @@ function checkQuizFile(relPath) {
       for (const i of idxs) {
         if (i >= q.options.length) errors.push(`${where}: correct=${i} выходит за пределы options`);
       }
+    }
+  }
+  // SymPy: пересчёт числовых ответов (python + sympy должны быть установлены)
+  try {
+    execFileSync('python', [path.join(__dirname, 'sympy_check.py')], {
+      input: JSON.stringify(quiz), encoding: 'utf8',
+    });
+  } catch (e) {
+    if (e.stdout) {
+      const rep = JSON.parse(e.stdout.toString());
+      for (const r of rep.results || []) {
+        if (r.status !== 'ok') {
+          errors.push(`${relPath} #${r.id}: sympy ${r.status}` +
+            (r.computed !== undefined ? ` (получено ${r.computed}, в файле ${r.correct})` : ''));
+        }
+      }
+    } else {
+      errors.push(`${relPath}: sympy_check не запустился: ${e.message}`);
     }
   }
 }

@@ -1,2 +1,5 @@
+.env
 node_modules/
 preview.html
+_drafts/
+textbook/

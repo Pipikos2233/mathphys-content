@@ -34,6 +34,10 @@
             "description": "short: допустимые написания ответа, сравнение после нормализации пробелов/регистра"
           },
           "explanation": { "type": "string", "description": "полный разбор, показывается после ответа" },
+          "sympy": {
+            "type": "string",
+            "description": "numeric: выражение SymPy, вычисление которого даёт correct; проверяется скриптом"
+          },
           "source": { "type": "string", "description": "учебник, параграф/страница — след для вычитки" }
         },
         "additionalProperties": false,

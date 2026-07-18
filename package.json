@@ -5,11 +5,14 @@
   "description": "Контент-репозиторий: конспекты по высшей математике и физике",
   "scripts": {
     "validate": "node tools/validate.js",
-    "preview": "node tools/preview.js"
+    "preview": "node tools/preview.js",
+    "generate": "node tools/generate.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
     "ajv": "^8.17.1",
     "katex": "^0.16.11",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.1.0",
+    "openai": "^6.48.0"
   }
 }
