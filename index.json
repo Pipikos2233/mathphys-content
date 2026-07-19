@@ -14,6 +14,14 @@
           "lesson": "sections/calculus/seq-limits/lesson.md",
           "quiz": "sections/calculus/seq-limits/quiz.json",
           "prerequisites": []
+        },
+        {
+          "id": "number-variable-function",
+          "title": "Число. Переменная. Функция (§1.1–§1.10)",
+          "version": 1,
+          "lesson": "sections/calculus/number-variable-function/lesson.md",
+          "quiz": "sections/calculus/number-variable-function/quiz.json",
+          "prerequisites": []
         }
       ]
     }

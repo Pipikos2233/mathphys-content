@@ -9,13 +9,16 @@
 import json
 import sys
 
-from sympy import (E, N, Rational, cos, diff, exp, integrate, limit, log, oo,
-                   pi, sin, sqrt, summation, symbols, tan)
+from sympy import (E, N, Abs, Rational, acos, asin, atan, atan2, ceiling, cos,
+                   diff, exp, floor, integrate, limit, log, oo, pi, sin, sqrt,
+                   summation, symbols, tan)
 
 x, n, t, k = symbols("x n t k")
 SAFE = {
     "limit": limit, "integrate": integrate, "diff": diff, "summation": summation,
     "sqrt": sqrt, "sin": sin, "cos": cos, "tan": tan, "log": log, "exp": exp,
+    "asin": asin, "acos": acos, "atan": atan, "atan2": atan2,
+    "floor": floor, "ceiling": ceiling, "Abs": Abs,
     "pi": pi, "E": E, "oo": oo, "Rational": Rational, "N": N,
     "x": x, "n": n, "t": t, "k": k,
 }

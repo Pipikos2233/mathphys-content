@@ -46,6 +46,7 @@ multi (массив индексов), numeric (число + tolerance), short (
     "limit((1+1/n)**(3*n), n, oo)"   → допустимо N(...) для десятичных
     "integrate(x**2, (x, 0, 1))"
   Используй только: limit, integrate, diff, summation, sqrt, sin, cos, tan, log, exp,
+  asin, acos, atan, atan2, floor, ceiling, Abs,
   pi, E, oo, Rational, N, symbols. Переменные объявляй неявно (x, n, t доступны).
 - В explanation — полный ход решения.
 - В source — параграф/страница источника.

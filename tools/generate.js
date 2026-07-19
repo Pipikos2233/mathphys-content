@@ -55,7 +55,7 @@ for (const [env, name] of [['ANTHROPIC_API_KEY', 'Anthropic'], ['OPENAI_API_KEY'
 }
 
 const GEN_MODEL = 'claude-sonnet-5';
-const REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.6';
+const REVIEW_MODEL = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.6-sol';
 
 const generatorPrompt = fs.readFileSync(path.join(__dirname, 'prompts', 'generator.md'), 'utf8');
 const reviewerPrompt = fs.readFileSync(path.join(__dirname, 'prompts', 'reviewer.md'), 'utf8');
@@ -95,17 +95,58 @@ async function generate(fixInstructions) {
     },
   ];
 
-  const stream = anthropic.messages.stream({
-    model: GEN_MODEL,
-    max_tokens: 32000,
-    thinking: { type: 'adaptive' },
-    system: generatorPrompt,
-    messages: [{ role: 'user', content: userContent }],
-  });
-  const msg = await stream.finalMessage();
-  if (msg.stop_reason === 'max_tokens') throw new Error('Генерация обрезана по max_tokens');
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-  return extractJson(text);
+  // Шлюз подмешивает системный промпт с инструментами (Bash и т.п.), и модель
+  // может пытаться их вызывать (stop_reason: tool_use) или возвращать не тот
+  // объект (например, только quiz без lesson_md). Оба случая лечим доп. раундом.
+  const history = [{ role: 'user', content: userContent }];
+  const FORMAT_REMINDER = 'Верни ОДНИМ текстовым сообщением СТРОГО один JSON-объект вида {"title": "...", "lesson_md": "<полный конспект строкой>", "quiz": {...}} — все три поля обязательны. Не вызывай инструменты и не пиши файлы.';
+  for (let round = 1; round <= 5; round++) {
+    const stream = anthropic.messages.stream({
+      model: GEN_MODEL,
+      max_tokens: 32000,
+      thinking: { type: 'adaptive' },
+      system: generatorPrompt,
+      messages: history,
+    });
+    const msg = await stream.finalMessage();
+    if (msg.stop_reason === 'max_tokens') throw new Error('Генерация обрезана по max_tokens');
+
+    if (msg.stop_reason === 'tool_use') {
+      history.push({ role: 'assistant', content: msg.content });
+      history.push({
+        role: 'user',
+        content: msg.content
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => ({
+            type: 'tool_result',
+            tool_use_id: b.id,
+            is_error: true,
+            content: `Инструменты в этом окружении недоступны. ${FORMAT_REMINDER}`,
+          })),
+      });
+      continue;
+    }
+
+    const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    let parsed = null;
+    try {
+      parsed = extractJson(text);
+    } catch (e) { /* переспросим ниже */ }
+    if (parsed && typeof parsed.lesson_md === 'string' && parsed.quiz && Array.isArray(parsed.quiz.questions)) {
+      return parsed;
+    }
+
+    const dumpDir = path.join(ROOT, '_drafts');
+    fs.mkdirSync(dumpDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dumpDir, `${topicId}.raw.json`),
+      JSON.stringify({ round, stop_reason: msg.stop_reason, content: msg.content }, null, 2),
+    );
+    console.log(`  Ответ раунда ${round} не в формате {title, lesson_md, quiz} — переспрашиваю...`);
+    history.push({ role: 'assistant', content: msg.content });
+    history.push({ role: 'user', content: `Это не тот формат (нужен полный объект, а не его часть). ${FORMAT_REMINDER}` });
+  }
+  throw new Error(`Модель не вернула корректный объект за 5 раундов; сырой ответ: ${path.join(ROOT, '_drafts', `${topicId}.raw.json`)}`);
 }
 
 function sympyCheck(quiz) {
@@ -122,18 +163,31 @@ function sympyCheck(quiz) {
 }
 
 async function review(draft) {
-  const completion = await openaiClient.chat.completions.create({
+  // Шлюз не поддерживает /v1/chat/completions (отдаёт пустой ответ) и требует
+  // от /v1/responses: stream: true, input списком, без max_output_tokens.
+  // response_format тоже не передаём — JSON просим промптом и вырезаем extractJson.
+  const stream = await openaiClient.responses.create({
     model: REVIEW_MODEL,
-    messages: [
+    stream: true,
+    input: [
       { role: 'system', content: reviewerPrompt },
       {
         role: 'user',
-        content: `ИСТОЧНИК:\n${sourceForReviewer}\n\nКОНСПЕКТ:\n${draft.lesson_md}\n\nТЕСТ:\n${JSON.stringify(draft.quiz, null, 2)}`,
+        content: `ИСТОЧНИК:\n${sourceForReviewer}\n\nКОНСПЕКТ:\n${draft.lesson_md}\n\nТЕСТ:\n${JSON.stringify(draft.quiz, null, 2)}\n\nОтветь ТОЛЬКО JSON-объектом вердикта, без пояснений вне JSON.`,
       },
     ],
-    response_format: { type: 'json_object' },
   });
-  return JSON.parse(completion.choices[0].message.content);
+  let text = '';
+  for await (const event of stream) {
+    if (event.type === 'response.output_text.delta') text += event.delta;
+    else if (event.type === 'response.failed' || event.type === 'error') {
+      throw new Error(`Рецензент (${REVIEW_MODEL}): ${JSON.stringify(event.response?.error || event)}`);
+    } else if (event.type === 'response.incomplete') {
+      throw new Error(`Рецензент (${REVIEW_MODEL}): ответ оборван (${event.response?.incomplete_details?.reason || 'unknown'})`);
+    }
+  }
+  if (!text.trim()) throw new Error(`Рецензент (${REVIEW_MODEL}): пустой ответ от шлюза`);
+  return extractJson(text);
 }
 
 function describeProblems(sympy, verdict) {
