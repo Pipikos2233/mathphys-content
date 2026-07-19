@@ -22,6 +22,14 @@
           "lesson": "sections/calculus/number-variable-function/lesson.md",
           "quiz": "sections/calculus/number-variable-function/quiz.json",
           "prerequisites": []
+        },
+        {
+          "id": "limits-continuity",
+          "title": "Предел. Непрерывность функций (§2.1–§2.11)",
+          "version": 1,
+          "lesson": "sections/calculus/limits-continuity/lesson.md",
+          "quiz": "sections/calculus/limits-continuity/quiz.json",
+          "prerequisites": []
         }
       ]
     }

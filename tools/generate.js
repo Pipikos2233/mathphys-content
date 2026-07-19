@@ -73,6 +73,31 @@ const sourceForReviewer = isPdf
 const anthropic = new Anthropic();
 const openaiClient = new OpenAI();
 
+// --- учёт токенов за прогон ---
+const tokens = {
+  anthropic: { calls: 0, input: 0, output: 0 },
+  openai: { calls: 0, input: 0, output: 0 },
+};
+function countAnthropic(usage) {
+  if (!usage) return;
+  tokens.anthropic.calls += 1;
+  tokens.anthropic.input += (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
+  tokens.anthropic.output += usage.output_tokens || 0;
+}
+function countOpenai(usage) {
+  if (!usage) return;
+  tokens.openai.calls += 1;
+  tokens.openai.input += usage.input_tokens || 0;
+  tokens.openai.output += usage.output_tokens || 0;
+}
+function reportTokens() {
+  const a = tokens.anthropic, o = tokens.openai;
+  console.log('\n--- Токены за прогон ---');
+  console.log(`Anthropic (${GEN_MODEL}): ${a.calls} вызовов, вход ${a.input.toLocaleString('ru')}, выход ${a.output.toLocaleString('ru')}`);
+  console.log(`OpenAI (${REVIEW_MODEL}): ${o.calls} вызовов, вход ${o.input.toLocaleString('ru')}, выход ${o.output.toLocaleString('ru')}`);
+  console.log(`Всего: ${(a.input + a.output + o.input + o.output).toLocaleString('ru')} токенов`);
+}
+
 function extractJson(text) {
   // модель может обернуть JSON в ```json ... ```
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -101,14 +126,22 @@ async function generate(fixInstructions) {
   const history = [{ role: 'user', content: userContent }];
   const FORMAT_REMINDER = 'Верни ОДНИМ текстовым сообщением СТРОГО один JSON-объект вида {"title": "...", "lesson_md": "<полный конспект строкой>", "quiz": {...}} — все три поля обязательны. Не вызывай инструменты и не пиши файлы.';
   for (let round = 1; round <= 5; round++) {
-    const stream = anthropic.messages.stream({
-      model: GEN_MODEL,
-      max_tokens: 32000,
-      thinking: { type: 'adaptive' },
-      system: generatorPrompt,
-      messages: history,
-    });
-    const msg = await stream.finalMessage();
+    let msg;
+    try {
+      const stream = anthropic.messages.stream({
+        model: GEN_MODEL,
+        max_tokens: 32000,
+        thinking: { type: 'adaptive' },
+        system: generatorPrompt,
+        messages: history,
+      });
+      msg = await stream.finalMessage();
+    } catch (e) {
+      // прокси иногда обрывает стрим — считаем раунд потерянным и пробуем ещё раз
+      console.log(`  Раунд ${round}: обрыв стрима (${e.message}) — повторяю...`);
+      continue;
+    }
+    countAnthropic(msg.usage);
     if (msg.stop_reason === 'max_tokens') throw new Error('Генерация обрезана по max_tokens');
 
     if (msg.stop_reason === 'tool_use') {
@@ -180,6 +213,7 @@ async function review(draft) {
   let text = '';
   for await (const event of stream) {
     if (event.type === 'response.output_text.delta') text += event.delta;
+    else if (event.type === 'response.completed') countOpenai(event.response?.usage);
     else if (event.type === 'response.failed' || event.type === 'error') {
       throw new Error(`Рецензент (${REVIEW_MODEL}): ${JSON.stringify(event.response?.error || event)}`);
     } else if (event.type === 'response.incomplete') {
@@ -225,6 +259,7 @@ function describeProblems(sympy, verdict) {
       const draftDir = path.join(ROOT, '_drafts');
       fs.mkdirSync(draftDir, { recursive: true });
       fs.writeFileSync(path.join(draftDir, `${topicId}.json`), JSON.stringify({ draft, verdict, sympy: sympy.report }, null, 2));
+      reportTokens();
       process.exit(1);
     }
     console.log('Отправляю на исправление...');
@@ -261,6 +296,7 @@ function describeProblems(sympy, verdict) {
   // --- финальный валидатор (схемы + KaTeX) ---
   console.log('\nВалидатор:');
   execFileSync('node', [path.join(__dirname, 'validate.js')], { stdio: 'inherit' });
+  reportTokens();
   console.log(`\nГотово: ${dir}\nПроверьте глазами, затем: git add -A && git commit && git push`);
 })().catch((e) => {
   console.error('Ошибка конвейера:', e.message);

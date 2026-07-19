@@ -52,10 +52,13 @@ async function review(d) {
     ],
   });
   let text = '';
+  let usage = null;
   for await (const event of stream) {
     if (event.type === 'response.output_text.delta') text += event.delta;
+    else if (event.type === 'response.completed') usage = event.response?.usage;
     else if (event.type === 'response.failed' || event.type === 'error') throw new Error(JSON.stringify(event));
   }
+  if (usage) console.log(`  (токены рецензии: вход ${usage.input_tokens}, выход ${usage.output_tokens})`);
   if (!text.trim()) throw new Error('пустой ответ рецензента');
   return extractJson(text);
 }
